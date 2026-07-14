@@ -23,6 +23,7 @@ import 'package:vector_math/vector_math_64.dart' as vm;
 import 'package:ros_flutter_gui_app/provider/nav_point_manager.dart';
 import 'dart:math';
 import 'package:ros_flutter_gui_app/display/pose.dart';
+import 'package:ros_flutter_gui_app/display/rooms_layer.dart';
 
 class MainFlame extends FlameGame {
   late MapComponent _displayMap;
@@ -48,6 +49,9 @@ class MainFlame extends FlameGame {
   
   // 机器人轮廓组件
   late custom.PolygonComponent _robotFootprintComponent;
+
+  // 房间绘制组件
+  late RoomsLayerComponent roomsLayer;
   
   // 全局状态引用
   late GlobalState globalState;
@@ -180,6 +184,10 @@ class MainFlame extends FlameGame {
     );
     _displayRobot.priority = 1002;
     world.add(_displayRobot);
+
+    roomsLayer = RoomsLayerComponent(rosChannel: rosChannel);
+    roomsLayer.priority = 1000;
+    world.add(roomsLayer);
 
     _wayPointComponents = [];
     
@@ -740,5 +748,10 @@ class MainFlame extends FlameGame {
       selectedPointType = type;
       _updateTopologyLayers();
     }
+  }
+
+  // 更新并绘制房间
+  void updateRooms(List<RosRoom> rooms, bool show) {
+    roomsLayer.updateRooms(rooms, show);
   }
 }

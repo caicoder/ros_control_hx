@@ -64,6 +64,7 @@ class RosChannel {
   late Topic diagnosticChannel_;
   late Service topologyGoalService_;
   Service? markerQueryService_;
+  Service? roomsQueryService_;
   late Topic topologyMapUpdateChannel_;
 
   String rosUrl_ = "";
@@ -475,6 +476,27 @@ class RosChannel {
       print("fetchMarkers error: $e");
     }
     return [];
+  }
+
+  Future<Map<String, dynamic>> queryRooms() async {
+    try {
+      print("==== QUERY ROOMS CALLED ====");
+      if (roomsQueryService_ == null) {
+        roomsQueryService_ = Service(
+          ros: ros,
+          name: "/android/rooms/query",
+          type: "android/RoomsQuery"
+        );
+      }
+      var result = await roomsQueryService_!.call(<String, dynamic>{});
+      print("==== QUERY ROOMS RAW RESULT: $result ====");
+      if (result is Map) {
+        return Map<String, dynamic>.from(result);
+      }
+    } catch (e) {
+      print("queryRooms error: $e");
+    }
+    return {};
   }
 
   Future<Map<String, dynamic>> sendTopologyGoal(String name) async {

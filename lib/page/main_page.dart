@@ -19,6 +19,9 @@ import 'package:ros_flutter_gui_app/page/gamepad_widget.dart';
 import 'package:ros_flutter_gui_app/basic/diagnostic_status.dart';
 import 'package:ros_flutter_gui_app/page/diagnostic_page.dart';
 import 'package:ros_flutter_gui_app/provider/diagnostic_manager.dart';
+import 'dart:math';
+import 'package:ros_flutter_gui_app/display/rooms_layer.dart';
+import 'package:roslibdart/roslibdart.dart';
 
 
 
@@ -32,6 +35,8 @@ class _MainFlamePageState extends State<MainFlamePage> {
   bool showLayerControl = false;
   bool showCamera = false;
   NavPoint? selectedNavPoint;
+  bool _isRoomsVisible = false;
+  List<RosRoom> _roomsList = [];
   
   // 相机相关变量
   Offset camPosition = Offset(30, 10); // 初始位置
@@ -157,6 +162,101 @@ class _MainFlamePageState extends State<MainFlamePage> {
         iconData,
         color: levelColor,
       ),
+    );
+  }
+
+  Future<void> _fetchAndShowRooms() async {
+    final rosChannel = Provider.of<RosChannel>(context, listen: false);
+    if (rosChannel.rosConnectState_ != Status.connected) {
+      toastification.show(
+        context: context,
+        title: const Text('未连接到机器人'),
+        autoCloseDuration: const Duration(seconds: 3),
+        type: ToastificationType.warning,
+      );
+      return;
+    }
+
+    try {
+      final response = await rosChannel.queryRooms();
+      print("queryRooms response: $response");
+      
+      bool success = response['success'] == true || 
+                     (response['values'] != null && response['values']['success'] == true);
+      
+      if (success) {
+        final roomsData = response['rooms'] ?? response['values']?['rooms'];
+        if (roomsData is List) {
+          final List<RosRoom> rooms = [];
+          for (var item in roomsData) {
+            if (item is Map<String, dynamic>) {
+              final color = _generateRandomColor();
+              rooms.add(RosRoom.fromJson(item, color));
+            }
+          }
+          
+          setState(() {
+            _roomsList = rooms;
+            _isRoomsVisible = true;
+          });
+          
+          game.updateRooms(_roomsList, _isRoomsVisible);
+          
+          toastification.show(
+            context: context,
+            title: Text('获取房间信息成功，已在地图上框出 ${rooms.length} 个房间'),
+            autoCloseDuration: const Duration(seconds: 3),
+            type: ToastificationType.success,
+          );
+        } else {
+          toastification.show(
+            context: context,
+            title: const Text('获取房间信息失败：数据格式不正确'),
+            autoCloseDuration: const Duration(seconds: 3),
+            type: ToastificationType.error,
+          );
+        }
+      } else {
+        final message = response['message'] ?? response['values']?['message'] ?? '未知错误';
+        toastification.show(
+          context: context,
+          title: Text('获取房间信息失败: $message'),
+          autoCloseDuration: const Duration(seconds: 3),
+          type: ToastificationType.error,
+        );
+      }
+    } catch (e) {
+      print("Error fetching rooms: $e");
+      toastification.show(
+        context: context,
+        title: Text('调用房间查询服务出错: $e'),
+        autoCloseDuration: const Duration(seconds: 3),
+        type: ToastificationType.error,
+      );
+    }
+  }
+
+  Color _generateRandomColor() {
+    final random = Random();
+    return Color.fromARGB(
+      255,
+      random.nextInt(150) + 50,
+      random.nextInt(150) + 50,
+      random.nextInt(150) + 50,
+    );
+  }
+
+  void _hideRooms() {
+    if (!_isRoomsVisible) return;
+    setState(() {
+      _isRoomsVisible = false;
+    });
+    game.updateRooms(_roomsList, _isRoomsVisible);
+    toastification.show(
+      context: context,
+      title: const Text('已隐藏房间框'),
+      autoCloseDuration: const Duration(seconds: 2),
+      type: ToastificationType.info,
     );
   }
 
@@ -878,6 +978,25 @@ class _MainFlamePageState extends State<MainFlamePage> {
                                 Mode.robotFixedCenter
                             ? Colors.green
                             : theme.iconTheme.color,
+                  ),
+                ),
+              ),
+              // 房间查询/隐藏按钮
+              Card(
+                elevation: 10,
+                child: GestureDetector(
+                  onLongPress: () {
+                    _hideRooms();
+                  },
+                  child: IconButton(
+                    onPressed: () {
+                      _fetchAndShowRooms();
+                    },
+                    icon: Icon(
+                      Icons.meeting_room,
+                      color: _isRoomsVisible ? Colors.green : theme.iconTheme.color,
+                    ),
+                    tooltip: '获取房间信息 (长按隐藏)',
                   ),
                 ),
               ),
