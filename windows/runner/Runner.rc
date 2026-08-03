@@ -89,13 +89,13 @@ BEGIN
     BEGIN
         BLOCK "040904e4"
         BEGIN
-            VALUE "CompanyName", "com.example" "\0"
-            VALUE "FileDescription", "ros_flutter_gui_app" "\0"
+            VALUE "CompanyName", "com.huaxi" "\0"
+            VALUE "FileDescription", "hx_control_ros" "\0"
             VALUE "FileVersion", VERSION_AS_STRING "\0"
-            VALUE "InternalName", "ros_flutter_gui_app" "\0"
-            VALUE "LegalCopyright", "Copyright (C) 2023 com.example. All rights reserved." "\0"
-            VALUE "OriginalFilename", "ros_flutter_gui_app.exe" "\0"
-            VALUE "ProductName", "ros_flutter_gui_app" "\0"
+            VALUE "InternalName", "hx_control_ros" "\0"
+            VALUE "LegalCopyright", "Copyright (C) 2026 com.huaxi. All rights reserved." "\0"
+            VALUE "OriginalFilename", "hx_control_ros.exe" "\0"
+            VALUE "ProductName", "hx_control_ros" "\0"
             VALUE "ProductVersion", VERSION_AS_STRING "\0"
         END
     END

@@ -1,8 +1,0 @@
-# Disabled. GitHub Actions only compiles Windows.
-name: Release (Disabled)
-on: []
-jobs:
-  disabled:
-    runs-on: ubuntu-latest
-    steps:
-      - run: echo "Disabled"
