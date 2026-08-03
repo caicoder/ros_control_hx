@@ -1,22 +1,43 @@
-name: Windows
+name: Windows CI/CD Auto Build (.exe)
 
 on:
   push:
     branches:
       - main
+      - t_project
   pull_request:
     branches:
       - main
+      - t_project
+  workflow_dispatch:
+
 jobs:
-  main:
+  build_windows:
+    name: Build Windows Release (.exe)
     runs-on: windows-latest
     steps:
       - name: Clone repository
         uses: actions/checkout@v4
+
       - name: Set up Flutter
         uses: subosito/flutter-action@v2.16.0
         with:
           channel: stable
-          flutter-version: 3.27.4
-      - run: flutter pub cache clean
-      - run: flutter build windows
+          flutter-version: "3.27.4"
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Build Windows Executable
+        run: flutter build windows --release
+
+      - name: Archive Windows Release Bundle
+        shell: powershell
+        run: |
+          Compress-Archive -Path "build\windows\x64\runner\Release\*" -DestinationPath "ros_control_hx_windows_x64.zip" -Force
+
+      - name: Upload Windows Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ros_control_hx_windows_x64
+          path: ros_control_hx_windows_x64.zip
