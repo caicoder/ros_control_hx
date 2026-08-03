@@ -34,6 +34,12 @@ jobs:
       - name: Install dependencies
         run: flutter pub get
 
+      - name: Clean Stale CMake Cache (Auto-match Visual Studio)
+        shell: powershell
+        run: |
+          if (Test-Path "windows\flutter\ephemeral") { Remove-Item -Recurse -Force "windows\flutter\ephemeral" }
+          if (Test-Path "build") { Remove-Item -Recurse -Force "build" }
+
       - name: Build Windows Executable
         run: flutter build windows --release
 
