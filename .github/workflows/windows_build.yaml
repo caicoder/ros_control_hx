@@ -25,70 +25,11 @@ jobs:
         uses: subosito/flutter-action@v2
         with:
           channel: 'stable'
+          flutter-version: '3.27.4'
           cache: true
-
-      - name: Cache Shengwang SDK Zip Files
-        uses: actions/cache@v4
-        with:
-          path: |
-            windows/third_party_cache/
-          key: shengwang-sdk-zips-v1
-
-      - name: Download Shengwang SDK Zips if missing
-        run: |
-          New-Item -ItemType Directory -Force windows/third_party_cache
-          
-          $irisZip = "windows/third_party_cache/iris_4.6.2-build.1_DCG_Windows_Video_Standalone_20260212_0947_31926.zip"
-          $nativeZip = "windows/third_party_cache/Shengwang_Native_SDK_for_Windows_rel.v4.6.2.70_31616_FULL_20260211_1433_1009683.zip"
-          
-          if (-not (Test-Path $irisZip)) {
-              Write-Output "Downloading Iris SDK..."
-              curl.exe --retry 10 --retry-delay 5 --connect-timeout 60 -L -o $irisZip "https://download.agora.io/sdk/release/iris_4.6.2-build.1_DCG_Windows_Video_Standalone_20260212_0947_31926.zip"
-          }
-          
-          if (-not (Test-Path $nativeZip)) {
-              Write-Output "Downloading Shengwang Native SDK..."
-              curl.exe --retry 10 --retry-delay 5 --connect-timeout 60 -L -o $nativeZip "https://download.shengwang.cn/sdk/release/Shengwang_Native_SDK_for_Windows_rel.v4.6.2.70_31616_FULL_20260211_1433_1009683.zip"
-          }
-        shell: powershell
 
       - name: Get dependencies
         run: flutter pub get
-
-      - name: Resolve Shengwang SDK Windows Symlink Issue
-        run: |
-          # 1. Locate the shengwang_rtc_engine folder inside local Pub Cache dynamically
-          $pluginDir = Get-ChildItem -Path "$env:LOCALAPPDATA\Pub\Cache\hosted\pub.dev" -Filter "shengwang_rtc_engine-*" | Select-Object -First 1 -ExpandProperty FullName
-          if (-not $pluginDir) {
-              $pluginDir = Get-ChildItem -Path "$env:PUB_CACHE\hosted\pub.dev" -Filter "shengwang_rtc_engine-*" | Select-Object -First 1 -ExpandProperty FullName
-          }
-          if (-not $pluginDir) {
-              Write-Output "Warning: Could not find shengwang_rtc_engine folder inside Pub cache, skipping patch."
-          } else {
-              Write-Output "Found plugin directory: $pluginDir"
-              
-              # 2. Copy the pre-downloaded SDK zip files into third_party/iris and third_party/native inside the Pub Cache
-              $irisDest = "$pluginDir/windows/third_party/iris"
-              $nativeDest = "$pluginDir/windows/third_party/native"
-              
-              New-Item -ItemType Directory -Force $irisDest
-              New-Item -ItemType Directory -Force $nativeDest
-              
-              Copy-Item -Force "windows/third_party_cache/iris_4.6.2-build.1_DCG_Windows_Video_Standalone_20260212_0947_31926.zip" "$irisDest/"
-              Copy-Item -Force "windows/third_party_cache/Shengwang_Native_SDK_for_Windows_rel.v4.6.2.70_31616_FULL_20260211_1433_1009683.zip" "$nativeDest/"
-              
-              # 3. Patch the DownloadSDK.cmake file inside Pub Cache to resolve the symlink path
-              $cmakeFile = "$pluginDir/windows/cmake/DownloadSDK.cmake"
-              if (Test-Path $cmakeFile) {
-                  $content = Get-Content $cmakeFile
-                  $patch = 'get_filename_component(CMAKE_CURRENT_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}" REALPATH)'
-                  Set-Content $cmakeFile -Value ($patch, $content)
-                  Write-Output "Successfully patched DownloadSDK.cmake!"
-              } else {
-                  Write-Output "Could not find DownloadSDK.cmake to patch inside Pub cache."
-              }
-          }
-        shell: powershell
 
       - name: Enable Windows Desktop
         run: flutter config --enable-windows-desktop
@@ -96,19 +37,8 @@ jobs:
       - name: Build Windows Release
         run: flutter build windows --release
 
-      - name: Build Installer using Inno Setup
-        continue-on-error: true
-        run: iscc windows/installer.iss
-
       - name: Upload ZIP Release (Folder)
         uses: actions/upload-artifact@v4
         with:
           name: windows-release-zip
           path: build/windows/x64/runner/Release/
-
-      - name: Upload EXE Setup (Single File Installer)
-        continue-on-error: true
-        uses: actions/upload-artifact@v4
-        with:
-          name: windows-setup-exe
-          path: build/windows/installer/
