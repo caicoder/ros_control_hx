@@ -22,9 +22,6 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Set up MSVC Developer Command Prompt
-        uses: ilammy/msvc-dev-cmd@v1
-
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
@@ -32,22 +29,28 @@ jobs:
           flutter-version: '3.27.4'
           cache: true
 
+      - name: Set up MSVC Developer Command Prompt
+        uses: ilammy/msvc-dev-cmd@v1
+
+      - name: Install Ninja Build Tool
+        run: choco install ninja -y
+
       - name: Enable Windows Desktop
         run: flutter config --enable-windows-desktop
 
       - name: Get dependencies
         run: flutter pub get
 
-      - name: Pre-generate CMake Solution for Visual Studio 2022
+      - name: Pre-generate CMake with Ninja Generator
         shell: powershell
         run: |
-          cmake -B build/windows -G "Visual Studio 17 2022" -A x64 -S windows
+          cmake -B build/windows -G Ninja -S windows
 
-      - name: Build Windows Release
-        run: flutter build windows --release
+      - name: Build Windows Executable Bundle
+        run: cmake --build build/windows --config Release
 
       - name: Upload ZIP Release (Folder)
         uses: actions/upload-artifact@v4
         with:
           name: windows-release-zip
-          path: build/windows/x64/runner/Release/
+          path: build/windows/runner/Release/
