@@ -600,9 +600,19 @@ class _MapEditPageState extends State<MapEditPage> {
           children: [
             _buildEditTool(
               icon: Icons.add_location_alt_rounded,
-              label: '添加点位',
+              label: '点击地图添加',
               toolName: EditToolType.addNavPoint,
               color: const Color(0xFF38BDF8),
+            ),
+            const SizedBox(height: 8),
+            _buildActionButton(
+              icon: Icons.my_location_rounded,
+              label: '获取位置添加',
+              color: const Color(0xFF10B981),
+              onPressed: () async {
+                final robotPose = rosChannel.robotPoseMap.value;
+                await _addNavPoint(robotPose.x, robotPose.y);
+              },
             ),
             const SizedBox(height: 8),
             _buildEditTool(
@@ -624,6 +634,42 @@ class _MapEditPageState extends State<MapEditPage> {
     );
   }
 
+  Widget _buildActionButton({
+    required IconData icon,
+    required String label,
+    required Color color,
+    required VoidCallback onPressed,
+  }) {
+    return InkWell(
+      onTap: onPressed,
+      borderRadius: BorderRadius.circular(8),
+      child: Container(
+        width: 100,
+        padding: const EdgeInsets.symmetric(vertical: 8),
+        decoration: BoxDecoration(
+          color: color.withOpacity(0.15),
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: color.withOpacity(0.6), width: 1.5),
+        ),
+        child: Column(
+          children: [
+            Icon(icon, size: 24, color: color),
+            const SizedBox(height: 4),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 11,
+                color: color,
+                fontWeight: FontWeight.bold,
+              ),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildEditTool({
     required IconData icon,
     required String label,
@@ -632,40 +678,41 @@ class _MapEditPageState extends State<MapEditPage> {
   }) {
     final isActive = selectedTool == toolName;
     
-    return Container(
-      width: 100,
-      decoration: BoxDecoration(
-        color: isActive ? color.withOpacity(0.2) : Colors.transparent,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: isActive ? color : Colors.transparent),
-      ),
-      child: Column(
-        children: [
-          IconButton(
-            icon: Icon(icon, size: 24),
-            color: isActive ? color : const Color(0xFF94A3B8),
-            onPressed: () {
-              if (isActive) {
-                selectedTool = null;
-                game.setSelectedTool(null);
-              } else {
-                selectedTool = toolName;
-                game.setSelectedTool(toolName);
-              }
-              setState(() {});
-            },
-          ),
-          Text(
-            label,
-            style: TextStyle(
-              fontSize: 12,
-              color: isActive ? color : const Color(0xFF94A3B8),
-              fontWeight: isActive ? FontWeight.bold : FontWeight.normal,
+    return InkWell(
+      onTap: () {
+        if (isActive) {
+          selectedTool = null;
+          game.setSelectedTool(null);
+        } else {
+          selectedTool = toolName;
+          game.setSelectedTool(toolName);
+        }
+        setState(() {});
+      },
+      borderRadius: BorderRadius.circular(8),
+      child: Container(
+        width: 100,
+        padding: const EdgeInsets.symmetric(vertical: 8),
+        decoration: BoxDecoration(
+          color: isActive ? color.withOpacity(0.2) : Colors.transparent,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: isActive ? color : Colors.transparent, width: 1.5),
+        ),
+        child: Column(
+          children: [
+            Icon(icon, size: 24, color: isActive ? color : const Color(0xFF94A3B8)),
+            const SizedBox(height: 4),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 11,
+                color: isActive ? color : const Color(0xFF94A3B8),
+                fontWeight: isActive ? FontWeight.bold : FontWeight.normal,
+              ),
+              textAlign: TextAlign.center,
             ),
-            textAlign: TextAlign.center,
-          ),
-          const SizedBox(height: 4),
-        ],
+          ],
+        ),
       ),
     );
   }

@@ -47,6 +47,16 @@ class TF2Dart {
     }
   }
 
+  DateTime? _lastTfWarnTime;
+
+  void _logTfWarning(String message) {
+    final now = DateTime.now();
+    if (_lastTfWarnTime == null || now.difference(_lastTfWarnTime!).inSeconds >= 5) {
+      _lastTfWarnTime = now;
+      print("[TF2] $message (throttled 5s)");
+    }
+  }
+
   RobotPose lookUpForTransform(String from, String to) {
     if (from.startsWith("/")) {
       from = from.replaceFirst("/", "");
@@ -58,7 +68,7 @@ class TF2Dart {
     try {
       var path = shortPath(from, to);
       if (path.isEmpty) {
-        print("Warning: No path found from $from to $to");
+        _logTfWarning("No path found from $from to $to");
         return RobotPose(0, 0, 0); // 返回默认位置而不是抛出异常
       }
 
@@ -69,7 +79,7 @@ class TF2Dart {
 
         var transformList = adjTrasnform[curr];
         if (transformList == null || transformList.isEmpty) {
-          print("Warning: No transform found from $curr to $next");
+          _logTfWarning("No transform found from $curr to $next");
           continue;
         }
 
@@ -88,7 +98,7 @@ class TF2Dart {
       }
       return pose;
     } catch (e) {
-      print("Error in lookUpForTransform: $e");
+      _logTfWarning("Error in lookUpForTransform: $e");
       return RobotPose(0, 0, 0); // 返回默认位置
     }
   }
@@ -96,7 +106,6 @@ class TF2Dart {
   List<String> shortPath(String from, String to) {
     if (from == to) return [from];
     if (!adj.containsKey(from)) {
-      // print("Warning: Frame '$from' not found in TF tree");
       return [];
     }
 
@@ -129,7 +138,7 @@ class TF2Dart {
       }
     }
 
-    print("Warning: No path found between '$from' and '$to'");
+    _logTfWarning("No path found between '$from' and '$to'");
     return [];
   }
 }

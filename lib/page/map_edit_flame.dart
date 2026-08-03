@@ -195,42 +195,40 @@ class MapEditFlame extends FlameGame {
     }
   }
   
-  // 处理单击事件，实现双击检测
   Future<bool> onTapDown(Vector2 position) async {
     if (selectedTool == EditToolType.addNavPoint) {
-      // position 为 GestureDetector.localPosition
       final worldPoint = camera.globalToLocal(position);
       final clickedWayPoint = _findWayPointAtPosition(worldPoint);
       
       if (clickedWayPoint != null) {
         print('clickedWayPoint: ${clickedWayPoint.navPoint?.name}');
-        // 选中导航点
         _selectWayPoint(clickedWayPoint);
         currentSelectPointUpdate?.call();
         return true;
       }
-        double mapX=0;
-        double mapY=0;
-        if(rosChannel != null && rosChannel!.map_.value != null){
-          vm.Vector2 mapPose = rosChannel!.map_.value.idx2xy(vm.Vector2(worldPoint.x, worldPoint.y));
-          mapX = mapPose.x;
-          mapY = mapPose.y;
-        }
+      
+      double mapX = 0;
+      double mapY = 0;
+      if (rosChannel != null && rosChannel!.map_.value != null) {
+        vm.Vector2 mapPose = rosChannel!.map_.value.idx2xy(vm.Vector2(worldPoint.x, worldPoint.y));
+        mapX = mapPose.x;
+        mapY = mapPose.y;
+      } else {
+        mapX = worldPoint.x * 0.05;
+        mapY = worldPoint.y * 0.05;
+      }
 
+      if (onAddNavPoint != null) {
         final result = await onAddNavPoint!(mapX, mapY);
         if (result != null) {
           print('导航点添加结果: $result mapX: $mapX mapY: $mapY');
-          // 用户确定了名称，创建新的导航点
           addWayPoint(result);
         } else {
           print('用户取消了导航点添加');
         }
-      
-        return true;  
-  
-    }else if(selectedTool == EditToolType.drawObstacle){
-      // 绘制障碍物
-      
+      }
+      return true;  
+    } else if (selectedTool == EditToolType.drawObstacle) {
       return true;
     }
     return false;
