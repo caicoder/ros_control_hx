@@ -16,7 +16,10 @@ on:
 jobs:
   build:
     name: Build Windows Release (.exe)
-    runs-on: windows-2019
+    runs-on: windows-latest
+
+    env:
+      CMAKE_GENERATOR: "Visual Studio 17 2022"
 
     steps:
       - name: Checkout code
@@ -34,6 +37,12 @@ jobs:
 
       - name: Enable Windows Desktop
         run: flutter config --enable-windows-desktop
+
+      - name: Clean Stale CMake Cache
+        shell: powershell
+        run: |
+          if (Test-Path "windows\flutter\ephemeral") { Remove-Item -Recurse -Force "windows\flutter\ephemeral" }
+          if (Test-Path "build") { Remove-Item -Recurse -Force "build" }
 
       - name: Build Windows Release
         run: flutter build windows --release
