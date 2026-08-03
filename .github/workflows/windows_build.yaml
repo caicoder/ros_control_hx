@@ -22,6 +22,9 @@ jobs:
       - name: Set up MSVC Developer Command Prompt
         uses: ilammy/msvc-dev-cmd@v1
 
+      - name: Install Ninja Build Tool
+        run: choco install ninja -y
+
       - name: Set up Flutter
         uses: subosito/flutter-action@v2.16.0
         with:
@@ -34,7 +37,7 @@ jobs:
       - name: Install dependencies
         run: flutter pub get
 
-      - name: Clean Stale CMake Cache (Auto-match Visual Studio)
+      - name: Clean Stale CMake Cache
         shell: powershell
         run: |
           if (Test-Path "windows\flutter\ephemeral") { Remove-Item -Recurse -Force "windows\flutter\ephemeral" }
