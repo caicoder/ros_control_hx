@@ -114,7 +114,14 @@ class Topic {
         if (message['topic'] != name) {
           return;
         }
-        await subscribeHandler(message['msg']);
+        final msgData = message['msg'];
+        if (msgData is Map<String, dynamic>) {
+          await subscribeHandler(msgData);
+        } else if (msgData is Map) {
+          await subscribeHandler(Map<String, dynamic>.from(msgData));
+        } else if (msgData != null) {
+          await subscribeHandler(<String, dynamic>{'data': msgData});
+        }
       });
     }
   }

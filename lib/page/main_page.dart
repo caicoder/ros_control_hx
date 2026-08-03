@@ -22,6 +22,8 @@ import 'package:ros_flutter_gui_app/provider/diagnostic_manager.dart';
 import 'dart:math';
 import 'package:ros_flutter_gui_app/display/rooms_layer.dart';
 import 'package:roslibdart/roslibdart.dart';
+import 'package:ros_flutter_gui_app/page/patrol_test_page.dart';
+import 'package:ros_flutter_gui_app/provider/patrol_test_manager.dart';
 
 
 
@@ -297,9 +299,175 @@ class _MainFlamePageState extends State<MainFlamePage> {
               _buildTopMenuBar(context, theme),
               _buildLeftToolbar(context, theme),
               _buildRightToolbar(context, theme),
+              _buildPatrolProgressBanner(context, theme),
             ],
           ),
         );
+  }
+
+  Widget _buildPatrolProgressBanner(BuildContext context, ThemeData theme) {
+    return Consumer<PatrolTestManager>(
+      builder: (context, patrolManager, child) {
+        if (!patrolManager.isPatrolling) return const SizedBox.shrink();
+
+        final currentPointName = patrolManager.currentTargetPoint?.name ?? '未知';
+        final activeLog = patrolManager.activePointLog;
+        final statusText = activeLog?.status ?? '导航中...';
+
+        return Positioned(
+          bottom: 20,
+          left: 50,
+          right: 50,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                colors: [Color(0xFF0F172A), Color(0xFF1E1B4B)],
+              ),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: const Color(0xFF06B6D4), width: 1.5),
+              boxShadow: [
+                BoxShadow(
+                  color: const Color(0xFF06B6D4).withOpacity(0.35),
+                  blurRadius: 18,
+                  spreadRadius: 2,
+                ),
+              ],
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Row(
+                  children: [
+                    const SizedBox(
+                      width: 22,
+                      height: 22,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2.5,
+                        color: Color(0xFF38BDF8),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                decoration: BoxDecoration(
+                                  gradient: const LinearGradient(
+                                    colors: [Color(0xFF06B6D4), Color(0xFF3B82F6)],
+                                  ),
+                                  borderRadius: BorderRadius.circular(6),
+                                ),
+                                child: Text(
+                                  '巡逻进行中 (第 ${patrolManager.currentRound} / ${patrolManager.totalRounds} 遍)',
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 12,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFF10B981).withOpacity(0.2),
+                                  borderRadius: BorderRadius.circular(6),
+                                  border: Border.all(color: const Color(0xFF10B981)),
+                                ),
+                                child: Text(
+                                  '用时 ${patrolManager.formattedElapsedTime}',
+                                  style: const TextStyle(
+                                    color: Color(0xFF34D399),
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 11,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 10),
+                              Text(
+                                '目标点: $currentPointName  (${patrolManager.currentPointIndex} / ${patrolManager.totalPointsInRound})',
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 15,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            '状态: $statusText  |  对应坐标: (${patrolManager.currentTargetPoint?.x.toStringAsFixed(2) ?? '0'}, ${patrolManager.currentTargetPoint?.y.toStringAsFixed(2) ?? '0'})  |  已成/处理: ${patrolManager.completedPointsCount} / ${patrolManager.totalPointsToPatrol} 点',
+                            style: const TextStyle(color: Color(0xFF94A3B8), fontSize: 12),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    ElevatedButton.icon(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF06B6D4),
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                      ),
+                      icon: const Icon(Icons.open_in_new, size: 16),
+                      label: const Text('控制台', style: TextStyle(fontWeight: FontWeight.bold)),
+                      onPressed: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const PatrolTestPage(),
+                          ),
+                        );
+                      },
+                    ),
+                    const SizedBox(width: 8),
+                    IconButton(
+                      icon: const Icon(Icons.stop_circle_rounded, color: Color(0xFFF43F5E), size: 28),
+                      tooltip: '停止巡逻',
+                      onPressed: () {
+                        final rosChannel = Provider.of<RosChannel>(context, listen: false);
+                        patrolManager.stopPatrol(rosChannel);
+                      },
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                // 实时进度条与百分比
+                Row(
+                  children: [
+                    Expanded(
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(6),
+                        child: LinearProgressIndicator(
+                          value: patrolManager.overallProgress,
+                          minHeight: 6,
+                          backgroundColor: const Color(0xFF334155),
+                          valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFF38BDF8)),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Text(
+                      patrolManager.progressPercentText,
+                      style: const TextStyle(
+                        color: Color(0xFF38BDF8),
+                        fontWeight: FontWeight.bold,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
   }
 
   Widget _buildTopMenuBar(BuildContext context, ThemeData theme) {
@@ -382,6 +550,68 @@ class _MainFlamePageState extends State<MainFlamePage> {
                       return Text('${navStatus.toString()}');
                     },
                   ),
+                ),
+              ),
+              // 点位编辑入口按钮
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 4.0),
+                child: ActionChip(
+                  avatar: const Icon(
+                    Icons.edit_location_alt_rounded,
+                    color: Colors.orangeAccent,
+                    size: 18,
+                  ),
+                  label: const Text(
+                    '点位编辑',
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  backgroundColor: Colors.orange[50],
+                  side: const BorderSide(color: Colors.orangeAccent),
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => MapEditPage(
+                          onExit: () {
+                            Provider.of<RosChannel>(context, listen: false).fetchMarkers();
+                          },
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
+              // 巡逻测试入口按钮（支持实时状态）
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 4.0),
+                child: Consumer<PatrolTestManager>(
+                  builder: (context, patrolManager, child) {
+                    return ActionChip(
+                      avatar: Icon(
+                        patrolManager.isPatrolling ? Icons.directions_run : Icons.alt_route,
+                        color: patrolManager.isPatrolling ? Colors.green : Colors.blueAccent,
+                        size: 18,
+                      ),
+                      label: Text(
+                        patrolManager.isPatrolling
+                            ? '巡逻中 (${patrolManager.currentRound}/${patrolManager.totalRounds})'
+                            : '巡逻测试',
+                        style: const TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                      backgroundColor: patrolManager.isPatrolling ? Colors.green[50] : Colors.blue[50],
+                      side: BorderSide(
+                        color: patrolManager.isPatrolling ? Colors.green : Colors.blueAccent,
+                      ),
+                      onPressed: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const PatrolTestPage(),
+                          ),
+                        );
+                      },
+                    );
+                  },
                 ),
               ),
               // 诊断状态显示

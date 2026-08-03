@@ -23,6 +23,9 @@ import 'package:ros_flutter_gui_app/basic/polygon_stamped.dart';
 import 'package:ros_flutter_gui_app/basic/pointcloud2.dart';
 import 'package:ros_flutter_gui_app/basic/diagnostic_array.dart';
 import 'package:ros_flutter_gui_app/provider/diagnostic_manager.dart';
+import 'package:ros_flutter_gui_app/service/online_player.dart';
+import 'package:ros_flutter_gui_app/provider/patrol_test_manager.dart';
+import 'package:ros_flutter_gui_app/service/navigation_log_manager.dart';
 import 'package:oktoast/oktoast.dart';
 
 class LaserData {
@@ -65,7 +68,11 @@ class RosChannel {
   late Service topologyGoalService_;
   Service? markerQueryService_;
   Service? roomsQueryService_;
+  Service? navigationService_;
   late Topic topologyMapUpdateChannel_;
+  late Topic movebaseActionRobotStatusChannel_;
+  late Topic waypointUpdateChannel_;
+  ValueNotifier<Map<String, String>> movebaseActionStatusData = ValueNotifier({});
 
   String rosUrl_ = "";
   Timer? cmdVelTimer;
@@ -427,9 +434,33 @@ class RosChannel {
 
     markerQueryService_ = Service(
       ros: ros,
-      name: "/android/marker/query",
-      type: "android/MarkerQuery" // Type might not be strictly needed or you can use a generic type
+      name: "/waypoint_manager",
+      type: "waypoint_manager/WaypointManager"
     );
+
+    navigationService_ = Service(
+      ros: ros,
+      name: "/navigation",
+      type: "navigation/Navigation"
+    );
+
+    movebaseActionRobotStatusChannel_ = Topic(
+      ros: ros,
+      name: "/movebaseActionRobotStatus",
+      type: "contnav_msgs/movebaseActionRobotStatus",
+      queueSize: 1,
+      reconnectOnClose: true,
+    );
+    movebaseActionRobotStatusChannel_.subscribe(movebaseActionRobotStatusCallback);
+
+    waypointUpdateChannel_ = Topic(
+      ros: ros,
+      name: "/waypoint_update",
+      type: "std_msgs/String",
+      queueSize: 1,
+      reconnectOnClose: true,
+    );
+    waypointUpdateChannel_.subscribe(waypointUpdateCallback);
   }
 
   Future<List<NavPoint>> fetchMarkers() async {
@@ -438,35 +469,68 @@ class RosChannel {
       if (markerQueryService_ == null) {
         markerQueryService_ = Service(
           ros: ros,
-          name: "/android/marker/query",
-          type: "android/MarkerQuery"
+          name: "/waypoint_manager",
+          type: "waypoint_manager/WaypointManager"
         );
       }
-      var result = await markerQueryService_!.call(<String, dynamic>{});
+      Map<String, dynamic> requestArgs = {
+        "task_id": "task_query_${DateTime.now().millisecondsSinceEpoch}",
+        "operation": "query",
+        "waypoint_id": "",
+        "waypoint": {
+          "id": "",
+          "name": "",
+          "type": "",
+          "x": 0.0,
+          "y": 0.0,
+          "yaw": 0.0
+        }
+      };
+      var result = await markerQueryService_!.call(requestArgs);
       print("==== FETCH MARKERS RAW RESULT: $result ====");
       
       if (result is Map) {
-        bool success = result['success'] == true || (result['values'] != null && result['values']['success'] == true);
+        Map values = (result['values'] is Map) ? result['values'] : result;
+        bool success = values['success'] == true || result['result'] == true || values['code'] == 0;
         if (success) {
-          List<dynamic> pointsList = result['values']?['points'] ?? result['points'] ?? [];
+          var waypointListObj = values['waypoint_list'] ?? result['waypoint_list'];
+          List<dynamic> pointsList = [];
+          if (waypointListObj is Map && waypointListObj['waypoints'] is List) {
+            pointsList = waypointListObj['waypoints'];
+          } else if (waypointListObj is List) {
+            pointsList = waypointListObj;
+          } else {
+            pointsList = values['points'] ?? result['points'] ?? [];
+          }
+
           List<NavPoint> parsedPoints = [];
           for (var p in pointsList) {
-            // Calculate theta from orientation quaternion
-            double qx = p['orientation']['x'] ?? 0.0;
-            double qy = p['orientation']['y'] ?? 0.0;
-            double qz = p['orientation']['z'] ?? 0.0;
-            double qw = p['orientation']['w'] ?? 1.0;
-            
-            vm.Quaternion quaternion = vm.Quaternion(qx, qy, qz, qw);
-            List<double> euler = quaternionToEuler(quaternion);
-            double theta = euler[0]; // yaw
+            double x = (p['x'] as num?)?.toDouble() ?? (p['position']?['x'] as num?)?.toDouble() ?? 0.0;
+            double y = (p['y'] as num?)?.toDouble() ?? (p['position']?['y'] as num?)?.toDouble() ?? 0.0;
+            double theta = 0.0;
+
+            if (p['yaw'] != null) {
+              theta = (p['yaw'] as num).toDouble();
+            } else if (p['orientation'] is Map) {
+              double qx = (p['orientation']['x'] as num?)?.toDouble() ?? 0.0;
+              double qy = (p['orientation']['y'] as num?)?.toDouble() ?? 0.0;
+              double qz = (p['orientation']['z'] as num?)?.toDouble() ?? 0.0;
+              double qw = (p['orientation']['w'] as num?)?.toDouble() ?? 1.0;
+              
+              vm.Quaternion quaternion = vm.Quaternion(qx, qy, qz, qw);
+              List<double> euler = quaternionToEuler(quaternion);
+              theta = euler[0];
+            }
+
+            String name = p['name']?.toString() ?? p['id']?.toString() ?? '';
+            String type = p['type']?.toString() ?? 'unknown';
 
             parsedPoints.add(NavPoint(
-              x: p['position']['x'] ?? 0.0,
-              y: p['position']['y'] ?? 0.0,
-              theta: p['yaw'] ?? theta, // fallback to calculated theta if yaw is missing
-              name: p['name'] ?? '',
-              type: p['type'] ?? 'unknown',
+              x: x,
+              y: y,
+              theta: theta,
+              name: name,
+              type: type,
             ));
           }
           return parsedPoints;
@@ -476,6 +540,239 @@ class RosChannel {
       print("fetchMarkers error: $e");
     }
     return [];
+  }
+
+  Future<void> waypointUpdateCallback(Map<String, dynamic> msg) async {
+    print("==== WAYPOINT UPDATE TOPIC RECEIVED: $msg ====");
+    await fetchMarkers();
+  }
+
+  /// 1) 添加点位 (operation: "add")
+  Future<Map<String, dynamic>> addWaypointService({
+    required String name,
+    required String type,
+    required double x,
+    required double y,
+    required double yaw,
+    String id = "",
+  }) async {
+    try {
+      if (markerQueryService_ == null) {
+        markerQueryService_ = Service(
+          ros: ros,
+          name: "/waypoint_manager",
+          type: "waypoint_manager/WaypointManager",
+        );
+      }
+      final String taskId = "add_${DateTime.now().millisecondsSinceEpoch}";
+      Map<String, dynamic> requestArgs = {
+        "task_id": taskId,
+        "operation": "add",
+        "waypoint_id": "",
+        "waypoint": {
+          "id": id,
+          "name": name,
+          "type": type,
+          "x": x,
+          "y": y,
+          "yaw": yaw,
+        }
+      };
+      print("==== ADD WAYPOINT REQUEST: $requestArgs ====");
+      var result = await markerQueryService_!.call(requestArgs);
+      print("==== ADD WAYPOINT RESULT: $result ====");
+      if (result is Map) {
+        Map values = (result['values'] is Map) ? result['values'] : result;
+        return Map<String, dynamic>.from(values);
+      }
+    } catch (e) {
+      print("addWaypointService error: $e");
+    }
+    return {"success": false};
+  }
+
+  /// 2) 删除点位 (operation: "delete")
+  Future<Map<String, dynamic>> deleteWaypointService({
+    required String waypointId,
+    String name = "",
+    String type = "",
+    double x = 0.0,
+    double y = 0.0,
+    double yaw = 0.0,
+  }) async {
+    try {
+      if (markerQueryService_ == null) {
+        markerQueryService_ = Service(
+          ros: ros,
+          name: "/waypoint_manager",
+          type: "waypoint_manager/WaypointManager",
+        );
+      }
+      final String taskId = "del_${DateTime.now().millisecondsSinceEpoch}";
+      Map<String, dynamic> requestArgs = {
+        "task_id": taskId,
+        "operation": "delete",
+        "waypoint_id": waypointId,
+        "waypoint": {
+          "id": "",
+          "name": name,
+          "type": type,
+          "x": x,
+          "y": y,
+          "yaw": yaw,
+        }
+      };
+      print("==== DELETE WAYPOINT REQUEST: $requestArgs ====");
+      var result = await markerQueryService_!.call(requestArgs);
+      print("==== DELETE WAYPOINT RESULT: $result ====");
+      if (result is Map) {
+        Map values = (result['values'] is Map) ? result['values'] : result;
+        return Map<String, dynamic>.from(values);
+      }
+    } catch (e) {
+      print("deleteWaypointService error: $e");
+    }
+    return {"success": false};
+  }
+
+  /// 3) 更新点位 (operation: "update")
+  Future<Map<String, dynamic>> updateWaypointService({
+    required String waypointId,
+    required String name,
+    required String type,
+    required double x,
+    required double y,
+    required double yaw,
+  }) async {
+    try {
+      if (markerQueryService_ == null) {
+        markerQueryService_ = Service(
+          ros: ros,
+          name: "/waypoint_manager",
+          type: "waypoint_manager/WaypointManager",
+        );
+      }
+      final String taskId = "upd_${DateTime.now().millisecondsSinceEpoch}";
+      Map<String, dynamic> requestArgs = {
+        "task_id": taskId,
+        "operation": "update",
+        "waypoint_id": "",
+        "waypoint": {
+          "id": waypointId,
+          "name": name,
+          "type": type,
+          "x": x,
+          "y": y,
+          "yaw": yaw,
+        }
+      };
+      print("==== UPDATE WAYPOINT REQUEST: $requestArgs ====");
+      var result = await markerQueryService_!.call(requestArgs);
+      print("==== UPDATE WAYPOINT RESULT: $result ====");
+      if (result is Map) {
+        Map values = (result['values'] is Map) ? result['values'] : result;
+        return Map<String, dynamic>.from(values);
+      }
+    } catch (e) {
+      print("updateWaypointService error: $e");
+    }
+    return {"success": false};
+  }
+
+  Future<void> movebaseActionRobotStatusCallback(Map<String, dynamic> msg) async {
+    print("==== MOVEBASE ACTION STATUS RAW CALLBACK: $msg ====");
+
+    String status = msg['movebaseActionRobotStatus']?.toString() ?? '';
+    String errorMsg = msg['errormessage']?.toString() ?? '';
+
+    if (status.isEmpty && msg['data'] != null) {
+      final dataStr = msg['data'].toString().trim();
+      if (dataStr.startsWith('{') && dataStr.endsWith('}')) {
+        try {
+          var decoded = jsonDecode(dataStr);
+          if (decoded is Map) {
+            status = decoded['movebaseActionRobotStatus']?.toString() ?? '';
+            errorMsg = decoded['errormessage']?.toString() ?? '';
+          }
+        } catch (_) {}
+      }
+      if (status.isEmpty) {
+        if (dataStr.contains('ActionStatusFinished')) {
+          status = 'ActionStatusFinished';
+        } else if (dataStr.contains('ActionStatusStopped')) {
+          status = 'ActionStatusStopped';
+        } else if (dataStr.contains('ActionStatusError')) {
+          status = 'ActionStatusError';
+        } else if (dataStr.contains('ActionStatusRunning')) {
+          status = 'ActionStatusRunning';
+        } else {
+          status = dataStr;
+        }
+      }
+    }
+
+    print("==== MOVEBASE ACTION STATUS CALLBACK: status=$status, errorMsg=$errorMsg ====");
+    movebaseActionStatusData.value = {
+      "movebaseActionRobotStatus": status,
+      "errormessage": errorMsg,
+      "timestamp": DateTime.now().millisecondsSinceEpoch.toString(),
+    };
+
+    // 实时记录 topic 日志并写入本地日志文件 (包含完整原始数据包)
+    NavigationLogManager.instance.logTopicStatus(status, errorMsg, rawData: msg);
+
+    // 若非巡逻测试状态（单点导航），由 RosChannel 统一下发语音播报
+    if (!PatrolTestManager.instance.isPatrolling) {
+      if (status == 'ActionStatusFinished') {
+        OnlinePlayer.instance.playTTS("已到达目标点位");
+      } else if (status == 'ActionStatusStopped') {
+        OnlinePlayer.instance.playTTS("导航任务已取消");
+      } else if (status == 'ActionStatusError') {
+        String voiceText = "导航失败，未知原因";
+        if (errorMsg == 'target_in_obs') {
+          voiceText = "导航失败，目标点在障碍物中";
+        } else if (errorMsg == 'robot_in_obs') {
+          voiceText = "导航失败，机器人在障碍物中";
+        }
+        OnlinePlayer.instance.playTTS(voiceText);
+      }
+    }
+  }
+
+  Future<Map<String, dynamic>> sendNavigationServiceGoal({
+    required String taskId,
+    required String requestType,
+    required double x,
+    required double y,
+    required double yaw,
+  }) async {
+    try {
+      print("==== SEND NAVIGATION SERVICE GOAL: taskId=$taskId, type=$requestType, x=$x, y=$y, yaw=$yaw ====");
+      if (navigationService_ == null) {
+        navigationService_ = Service(
+          ros: ros,
+          name: "/navigation",
+          type: "navigation/Navigation",
+        );
+      }
+      Map<String, dynamic> requestArgs = {
+        "task_id": taskId,
+        "request_type": requestType,
+        "x": x,
+        "y": y,
+        "yaw": yaw,
+      };
+      var result = await navigationService_!.call(requestArgs);
+      print("==== NAVIGATION SERVICE RESPONSE: $result ====");
+      if (result is Map) {
+        Map values = (result['values'] is Map) ? result['values'] : result;
+        return Map<String, dynamic>.from(values);
+      }
+    } catch (e) {
+      print("sendNavigationServiceGoal error: $e");
+      return {"result": "error", "message": e.toString()};
+    }
+    return {"result": "error"};
   }
 
   Future<Map<String, dynamic>> queryRooms() async {

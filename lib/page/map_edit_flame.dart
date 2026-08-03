@@ -321,6 +321,16 @@ class MapEditFlame extends FlameGame {
   }
   
   
+  // 清空所有导航点
+  void clearAllWayPoints() {
+    for (final wp in wayPoints) {
+      wp.removeFromParent();
+    }
+    wayPoints.clear();
+    currentSelectedWayPoint = null;
+    onWayPointSelectionChanged?.call();
+  }
+
   // 删除选中的导航点
   String deleteSelectedWayPoint() {
     if (selectedWayPoint != null) {

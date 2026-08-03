@@ -19,6 +19,8 @@ import 'package:ros_flutter_gui_app/language/l10n/gen/app_localizations.dart';
 
 import 'package:oktoast/oktoast.dart';
 
+import 'package:ros_flutter_gui_app/provider/patrol_test_manager.dart';
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   
@@ -40,7 +42,8 @@ void main() async {
     Provider<RosChannel>(create: (_) => RosChannel()),
     ChangeNotifierProvider<ThemeProvider>(create: (_) => ThemeProvider()),
     ChangeNotifierProvider<GlobalState>(create: (_) => GlobalState()),
-    ChangeNotifierProvider<NavPointManager>(create: (_) => NavPointManager())
+    ChangeNotifierProvider<NavPointManager>(create: (_) => NavPointManager()),
+    ChangeNotifierProvider<PatrolTestManager>(create: (_) => PatrolTestManager()),
   ], child: MyApp()));
 }
 
