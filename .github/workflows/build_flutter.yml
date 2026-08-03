@@ -11,8 +11,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # 关键：正确初始化 MSVC/Visual Studio 编译环境
-      # 否则 CMake 可能找不到 Visual Studio 实例
+      # 正确初始化 MSVC/Visual Studio 编译环境（vcvarsall）
+      # 并设置 CMAKE_GENERATOR 指向 VS 2022
       - name: Setup MSVC environment
         uses: ilammy/msvc-dev-cmd@v1
 
@@ -28,8 +28,25 @@ jobs:
       - name: Enable Windows Desktop
         run: flutter config --enable-windows-desktop
 
+      - name: Check Visual Studio
+        shell: pwsh
+        run: |
+          Write-Host "=== vswhere 检测 VS 实例 ==="
+          $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
+          if (Test-Path $vswhere) {
+            & $vswhere -all -products * -format json
+          } else {
+            Write-Host "vswhere not found"
+          }
+          Write-Host "=== CMake 版本 ==="
+          cmake --version
+
       - name: Build Windows Release
+        # 强制指定 CMake 使用 VS 2022，避免 Flutter 回退到默认的 VS 2019
         run: flutter build windows --release
+        env:
+          CMAKE_GENERATOR: "Visual Studio 17 2022"
+          CMAKE_GENERATOR_PLATFORM: "x64"
 
       - name: Upload Windows Artifact
         uses: actions/upload-artifact@v4
