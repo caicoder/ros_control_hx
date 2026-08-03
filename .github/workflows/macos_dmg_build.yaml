@@ -1,43 +1,8 @@
-name: Build macOS DMG App
-
-on:
-  push:
-    branches:
-      - main
-      - master
-      - t_project
-  workflow_dispatch:
-
+# Disabled. GitHub Actions only compiles Windows.
+name: Build macOS DMG App (Disabled)
+on: []
 jobs:
-  build_mac_dmg:
-    name: Build macOS DMG
-    runs-on: macos-latest
+  disabled:
+    runs-on: ubuntu-latest
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Setup Flutter
-        uses: subosito/flutter-action@v2
-        with:
-          channel: 'stable'
-          flutter-version: '3.27.4'
-
-      - name: Get dependencies
-        run: flutter pub get
-
-      - name: Build macOS Release
-        run: flutter build macos --release
-
-      - name: Create DMG File
-        run: |
-          mkdir -p dmg_staging
-          cp -R build/macos/Build/Products/Release/*.app dmg_staging/
-          ln -s /Applications dmg_staging/Applications
-          hdiutil create -volname "ros_flutter_gui_app" -srcfolder dmg_staging -ov -format UDZO ros_flutter_gui_app.dmg
-          rm -rf dmg_staging
-
-      - name: Upload macOS DMG Artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: macos-dmg-release
-          path: ros_flutter_gui_app.dmg
+      - run: echo "Disabled"

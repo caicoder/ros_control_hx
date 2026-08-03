@@ -15,7 +15,8 @@ on:
 
 jobs:
   build:
-    runs-on: windows-latest
+    name: Build Windows Release (.exe)
+    runs-on: windows-2019
 
     steps:
       - name: Checkout code
