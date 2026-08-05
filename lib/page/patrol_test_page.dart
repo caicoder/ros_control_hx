@@ -8,7 +8,8 @@ import 'package:ros_flutter_gui_app/provider/nav_point_manager.dart';
 import 'package:ros_flutter_gui_app/provider/ros_channel.dart';
 import 'package:ros_flutter_gui_app/provider/patrol_test_manager.dart';
 import 'package:ros_flutter_gui_app/service/navigation_log_manager.dart';
-
+import 'package:ros_flutter_gui_app/service/report_exporter.dart';
+import 'package:toastification/toastification.dart';
 /// 单个点位巡逻记录
 class PatrolPointLog {
   final String pointName;
@@ -918,12 +919,22 @@ class _PatrolTestPageState extends State<PatrolTestPage> with SingleTickerProvid
                                                   itemBuilder: (context, index) {
                                                     final line = logs[index];
                                                     final isHeader = line.contains('==== 导航开始:');
+                                                    final isError = line.contains('[ERROR]');
+                                                    Color textColor;
+                                                    if (isHeader) {
+                                                      textColor = const Color(0xFF38BDF8);
+                                                    } else if (isError) {
+                                                      textColor = const Color(0xFFF43F5E);
+                                                    } else {
+                                                      textColor = const Color(0xFF34D399);
+                                                    }
+                                                    
                                                     return Padding(
                                                       padding: const EdgeInsets.symmetric(vertical: 2),
                                                       child: Text(
                                                         line,
                                                         style: TextStyle(
-                                                          color: isHeader ? const Color(0xFF38BDF8) : const Color(0xFF34D399),
+                                                          color: textColor,
                                                           fontWeight: isHeader ? FontWeight.bold : FontWeight.normal,
                                                           fontSize: 12,
                                                           fontFamily: 'monospace',
@@ -997,37 +1008,77 @@ class _PatrolTestPageState extends State<PatrolTestPage> with SingleTickerProvid
                   ),
                 ],
               ),
-              OutlinedButton.icon(
-                style: OutlinedButton.styleFrom(
-                  side: const BorderSide(color: Color(0xFFF43F5E)),
-                  foregroundColor: const Color(0xFFF43F5E),
-                ),
-                icon: const Icon(Icons.delete_sweep_rounded, size: 18),
-                label: const Text('清空历史报告', style: TextStyle(fontWeight: FontWeight.bold)),
-                onPressed: () async {
-                  final confirm = await showDialog<bool>(
-                    context: context,
-                    builder: (context) => AlertDialog(
-                      backgroundColor: const Color(0xFF1E293B),
-                      title: const Text('清空确认', style: TextStyle(color: Colors.white)),
-                      content: const Text('确定要清空所有已保存的巡逻测试报告吗？', style: TextStyle(color: Color(0xFF94A3B8))),
-                      actions: [
-                        TextButton(
-                          onPressed: () => Navigator.pop(context, false),
-                          child: const Text('取消', style: TextStyle(color: Color(0xFF94A3B8))),
-                        ),
-                        TextButton(
-                          onPressed: () => Navigator.pop(context, true),
-                          child: const Text('确定清空', style: TextStyle(color: Color(0xFFF43F5E))),
-                        ),
-                      ],
+              Row(
+                children: [
+                  OutlinedButton.icon(
+                    style: OutlinedButton.styleFrom(
+                      side: const BorderSide(color: Color(0xFF38BDF8)),
+                      foregroundColor: const Color(0xFF38BDF8),
                     ),
-                  );
-                  if (confirm == true) {
-                    await PatrolReportStorage.clearAll();
-                    await _loadHistoryReports();
-                  }
-                },
+                    icon: const Icon(Icons.download_rounded, size: 18),
+                    label: const Text('导出报告', style: TextStyle(fontWeight: FontWeight.bold)),
+                    onPressed: _historyReports.isEmpty ? null : () async {
+                      toastification.show(
+                        context: context,
+                        title: const Text('正在导出报告...'),
+                        type: ToastificationType.info,
+                        autoCloseDuration: const Duration(seconds: 2),
+                      );
+                      
+                      final path = await ReportExporter.exportToHtml(_historyReports);
+                      if (path != null) {
+                        toastification.show(
+                          context: context,
+                          title: const Text('导出成功'),
+                          description: Text('报告已保存至: $path'),
+                          type: ToastificationType.success,
+                          autoCloseDuration: const Duration(seconds: 5),
+                        );
+                      } else {
+                        toastification.show(
+                          context: context,
+                          title: const Text('导出失败'),
+                          description: const Text('无法保存报告文件，请检查存储权限或稍后再试。'),
+                          type: ToastificationType.error,
+                          autoCloseDuration: const Duration(seconds: 3),
+                        );
+                      }
+                    },
+                  ),
+                  const SizedBox(width: 12),
+                  OutlinedButton.icon(
+                    style: OutlinedButton.styleFrom(
+                      side: const BorderSide(color: Color(0xFFF43F5E)),
+                      foregroundColor: const Color(0xFFF43F5E),
+                    ),
+                    icon: const Icon(Icons.delete_sweep_rounded, size: 18),
+                    label: const Text('清空历史报告', style: TextStyle(fontWeight: FontWeight.bold)),
+                    onPressed: () async {
+                      final confirm = await showDialog<bool>(
+                        context: context,
+                        builder: (context) => AlertDialog(
+                          backgroundColor: const Color(0xFF1E293B),
+                          title: const Text('清空确认', style: TextStyle(color: Colors.white)),
+                          content: const Text('确定要清空所有已保存的巡逻测试报告吗？', style: TextStyle(color: Color(0xFF94A3B8))),
+                          actions: [
+                            TextButton(
+                              onPressed: () => Navigator.pop(context, false),
+                              child: const Text('取消', style: TextStyle(color: Color(0xFF94A3B8))),
+                            ),
+                            TextButton(
+                              onPressed: () => Navigator.pop(context, true),
+                              child: const Text('确定清空', style: TextStyle(color: Color(0xFFF43F5E))),
+                            ),
+                          ],
+                        ),
+                      );
+                      if (confirm == true) {
+                        await PatrolReportStorage.clearAll();
+                        await _loadHistoryReports();
+                      }
+                    },
+                  ),
+                ],
               ),
             ],
           ),

@@ -69,6 +69,8 @@ class RosChannel {
   Service? markerQueryService_;
   Service? roomsQueryService_;
   Service? navigationService_;
+  Service? relocalizationService_;
+  bool isRelocalizationServiceCalling = false;
   late Topic topologyMapUpdateChannel_;
   late Topic movebaseActionRobotStatusChannel_;
   late Topic waypointUpdateChannel_;
@@ -801,6 +803,79 @@ class RosChannel {
       "point_name": name
     };
     
+    try {
+      var result = await topologyGoalService_.call(msg);
+      print("result: $result");
+      
+      // 检查result是否为字符串（错误信息）
+      if (result is String) {
+        return {
+          "is_success": false,
+          "message": result
+        };
+      }
+      
+      Map values = (result['values'] is Map) ? result['values'] : result;
+      return Map<String, dynamic>.from(values);
+    } catch (e) {
+      print("sendTopologyGoal error: $e");
+      return {"is_success": false, "message": e.toString()};
+    }
+  }
+
+  Future<Map<String, dynamic>> callRelocalizationService() async {
+    if (isRelocalizationServiceCalling) {
+      print("已有重定位服务调用在执行，取消本次新调用");
+      return {'success': false, 'message': '已有重定位服务调用在执行'};
+    }
+
+    if (rosConnectState_ != Status.connected) {
+      return {'success': false, 'message': 'ROS not connected'};
+    }
+
+    isRelocalizationServiceCalling = true;
+    try {
+      if (relocalizationService_ == null) {
+        relocalizationService_ = Service(
+          name: '/recovery_service',
+          ros: ros,
+          type: 'recovery_service/RecoveryService',
+        );
+      }
+
+      var result = await relocalizationService_!
+          .call(<String, dynamic>{})
+          .timeout(const Duration(seconds: 120));
+      
+      if (result is String) {
+        print("重定位服务返回错误字符串: $result");
+        return {'success': false, 'message': result};
+      }
+
+      if (result is Map) {
+        Map values = (result['values'] is Map) ? result['values'] : result;
+        bool success = values['success'] == true;
+        if (success) {
+          print("重定位成功: ${values['message']}");
+          print("置信度=${values['confidence']} 重试次数=${values['attempts_used']}");
+        } else {
+          print("重定位失败: ${values['message']}");
+        }
+        return Map<String, dynamic>.from(values);
+      }
+
+      print("重定位服务返回未知格式: $result");
+      return {'success': false, 'message': 'Unknown response format'};
+    } catch (e) {
+      print("callRelocalizationService error: $e");
+      return {'success': false, 'message': '重定位服务出错: $e'};
+    } finally {
+      isRelocalizationServiceCalling = false;
+    }
+  }
+
+  Future<Map<String, dynamic>> sendTopologyNavigationGoal(
+      Map<String, dynamic> msg) async {
     try {
       var result = await topologyGoalService_.call(msg);
       print("result: $result");

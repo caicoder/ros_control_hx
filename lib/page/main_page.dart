@@ -302,6 +302,39 @@ class _MainFlamePageState extends State<MainFlamePage> {
               _buildPatrolProgressBanner(context, theme),
             ],
           ),
+          floatingActionButton: FloatingActionButton(
+            heroTag: "relocBtn",
+            onPressed: () async {
+              final rosChannel = Provider.of<RosChannel>(context, listen: false);
+              toastification.show(
+                context: context,
+                title: const Text('正在请求全局重定位...'),
+                autoCloseDuration: const Duration(seconds: 2),
+                type: ToastificationType.info,
+              );
+              final result = await rosChannel.callRelocalizationService();
+              if (result['success'] == true) {
+                toastification.show(
+                  context: context,
+                  title: const Text('重定位成功'),
+                  description: Text('置信度: ${result["confidence"]?.toStringAsFixed(3)}'),
+                  autoCloseDuration: const Duration(seconds: 5),
+                  type: ToastificationType.success,
+                );
+              } else {
+                toastification.show(
+                  context: context,
+                  title: const Text('重定位失败'),
+                  description: Text(result['message'] ?? '未知错误'),
+                  autoCloseDuration: const Duration(seconds: 5),
+                  type: ToastificationType.error,
+                );
+              }
+            },
+            backgroundColor: Colors.blueAccent,
+            child: const Icon(Icons.my_location, color: Colors.white),
+            tooltip: '全局重定位',
+          ),
         );
   }
 

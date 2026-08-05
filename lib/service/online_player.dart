@@ -7,7 +7,7 @@ import 'package:audioplayers/audioplayers.dart';
 
 /// 在线 TTS 语音播放单例服务
 class OnlinePlayer {
-  static const String ttsUrl = "http://118.195.160.157:9001/tts";
+  static const String ttsUrl = "http://175.24.176.33:8019/tts";
   static final OnlinePlayer _instance = OnlinePlayer._internal();
 
   factory OnlinePlayer() => _instance;

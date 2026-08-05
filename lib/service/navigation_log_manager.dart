@@ -43,15 +43,12 @@ class NavigationLogManager extends ChangeNotifier {
   /// 2. 实时记录 /movebaseActionRobotStatus 话题全部回调数据
   Future<void> logTopicStatus(String status, String errorMessage, {dynamic rawData}) async {
     final timestamp = _formatTimestamp();
-    String rawStr = "";
-    if (rawData != null) {
-      try {
-        rawStr = rawData is String ? rawData : jsonEncode(rawData);
-      } catch (_) {
-        rawStr = rawData.toString();
-      }
+    String logLine;
+    if (errorMessage.isNotEmpty) {
+      logLine = "[$timestamp] [ERROR] status: '$status', errormessage: '$errorMessage'";
+    } else {
+      logLine = "[$timestamp] status: '$status'";
     }
-    final logLine = "[$timestamp] Topic /movebaseActionRobotStatus -> status: '$status', errormessage: '$errorMessage' | 完整数据: $rawStr";
     await _addLog(logLine);
   }
 
