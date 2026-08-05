@@ -726,7 +726,7 @@ class RosChannel {
     // 若非巡逻测试状态（单点导航），由 RosChannel 统一下发语音播报
     if (!PatrolTestManager.instance.isPatrolling) {
       if (status == 'ActionStatusFinished') {
-        OnlinePlayer.instance.playTTS("已到达目标点位");
+        // 正常不播报
       } else if (status == 'ActionStatusStopped') {
         OnlinePlayer.instance.playTTS("导航任务已取消");
       } else if (status == 'ActionStatusError') {

@@ -207,13 +207,6 @@ class PatrolTestManager extends ChangeNotifier {
             logItem.finishTime = DateTime.now();
             currentReport?.pointLogs.add(logItem);
             
-            // 语音播报：到达点位
-            try {
-              OnlinePlayer.instance.playTTS("已到达点位 ${targetPoint.name}");
-            } catch (e) {
-              print("TTS 播报异常 (忽略): $e");
-            }
-
             pointCompleter.complete();
           } else if (status == 'ActionStatusError') {
             timeoutTimer?.cancel();
