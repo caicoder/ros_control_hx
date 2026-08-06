@@ -72,6 +72,7 @@ class PatrolPointLog {
 /// 巡逻测试报告
 class PatrolReport {
   final String id;
+  final String ip;
   final DateTime startTime;
   DateTime? endTime;
   final int totalRounds;
@@ -81,6 +82,7 @@ class PatrolReport {
 
   PatrolReport({
     required this.id,
+    this.ip = "",
     required this.startTime,
     this.endTime,
     required this.totalRounds,
@@ -100,6 +102,7 @@ class PatrolReport {
 
   Map<String, dynamic> toJson() => {
         'id': id,
+        'ip': ip,
         'startTime': startTime.toIso8601String(),
         'endTime': endTime?.toIso8601String(),
         'totalRounds': totalRounds,
@@ -110,6 +113,7 @@ class PatrolReport {
 
   factory PatrolReport.fromJson(Map<String, dynamic> json) => PatrolReport(
         id: json['id'] ?? '',
+        ip: json['ip'] ?? '',
         startTime: DateTime.parse(json['startTime']),
         endTime: json['endTime'] != null ? DateTime.parse(json['endTime']) : null,
         totalRounds: json['totalRounds'] ?? 1,
@@ -224,9 +228,11 @@ class _PatrolTestPageState extends State<PatrolTestPage> with SingleTickerProvid
       });
     }
     final reports = await PatrolReportStorage.loadReports();
+    final rosChannel = Provider.of<RosChannel>(context, listen: false);
+    final currentIp = rosChannel.currentIp;
     if (mounted) {
       setState(() {
-        _historyReports = reports;
+        _historyReports = reports.where((r) => r.ip == currentIp || r.ip.isEmpty).toList();
         _isLoadingHistory = false;
       });
     }
@@ -423,10 +429,10 @@ class _PatrolTestPageState extends State<PatrolTestPage> with SingleTickerProvid
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    const Row(
+                    Row(
                       children: [
-                        Icon(Icons.loop_rounded, color: Color(0xFF38BDF8), size: 20),
-                        SizedBox(width: 8),
+                        const Icon(Icons.loop_rounded, color: Color(0xFF38BDF8), size: 20),
+                        const SizedBox(width: 8),
                         Text(
                           '循环巡逻次数:',
                           style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14),
@@ -447,22 +453,10 @@ class _PatrolTestPageState extends State<PatrolTestPage> with SingleTickerProvid
                                 ? null
                                 : () => manager.setTotalRounds(manager.totalRounds - 1),
                           ),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                            decoration: BoxDecoration(
-                              gradient: const LinearGradient(
-                                colors: [Color(0xFF06B6D4), Color(0xFF3B82F6)],
-                              ),
-                              borderRadius: BorderRadius.circular(6),
-                            ),
-                            child: Text(
-                              '${manager.totalRounds} 遍',
-                              style: const TextStyle(
-                                fontWeight: FontWeight.w900,
-                                fontSize: 15,
-                                color: Colors.white,
-                              ),
-                            ),
+                          _RoundsInputWidget(
+                            initialRounds: manager.totalRounds,
+                            isPatrolling: manager.isPatrolling,
+                            onChanged: (val) => manager.setTotalRounds(val),
                           ),
                           IconButton(
                             icon: const Icon(Icons.add, color: Color(0xFF38BDF8), size: 18),
@@ -478,6 +472,39 @@ class _PatrolTestPageState extends State<PatrolTestPage> with SingleTickerProvid
               ),
 
               const SizedBox(height: 14),
+
+              if (Provider.of<RosChannel>(context).currentIp.isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 14),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 16),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF0F172A).withOpacity(0.6),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: const Color(0xFF38BDF8).withOpacity(0.2)),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Icon(Icons.wifi_rounded, color: Color(0xFF38BDF8), size: 16),
+                        const SizedBox(width: 8),
+                        const Text(
+                          '当前连接设备 IP: ',
+                          style: TextStyle(color: Colors.white70, fontSize: 13),
+                        ),
+                        Text(
+                          Provider.of<RosChannel>(context).currentIp,
+                          style: const TextStyle(
+                            color: Color(0xFF38BDF8),
+                            fontWeight: FontWeight.bold,
+                            fontSize: 14,
+                            letterSpacing: 0.5,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
 
               // 启动 / 停止 大按钮
               SizedBox(
@@ -1342,5 +1369,110 @@ class _PatrolTestPageState extends State<PatrolTestPage> with SingleTickerProvid
 
   String _formatDateTime(DateTime dt) {
     return '${dt.year}-${dt.month.toString().padLeft(2, '0')}-${dt.day.toString().padLeft(2, '0')} ${_formatTime(dt)}';
+  }
+}
+
+class _RoundsInputWidget extends StatefulWidget {
+  final int initialRounds;
+  final bool isPatrolling;
+  final ValueChanged<int> onChanged;
+
+  const _RoundsInputWidget({
+    Key? key,
+    required this.initialRounds,
+    required this.isPatrolling,
+    required this.onChanged,
+  }) : super(key: key);
+
+  @override
+  _RoundsInputWidgetState createState() => _RoundsInputWidgetState();
+}
+
+class _RoundsInputWidgetState extends State<_RoundsInputWidget> {
+  late TextEditingController _controller;
+  late FocusNode _focusNode;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = TextEditingController(text: widget.initialRounds.toString());
+    _focusNode = FocusNode();
+    _focusNode.addListener(() {
+      if (!_focusNode.hasFocus) {
+        _submit();
+      }
+    });
+  }
+
+  @override
+  void didUpdateWidget(_RoundsInputWidget oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.initialRounds != widget.initialRounds && !_focusNode.hasFocus) {
+      _controller.text = widget.initialRounds.toString();
+    }
+  }
+
+  void _submit() {
+    int? val = int.tryParse(_controller.text);
+    if (val != null && val > 0) {
+      widget.onChanged(val);
+    } else {
+      _controller.text = widget.initialRounds.toString();
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    _focusNode.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 70,
+      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [Color(0xFF06B6D4), Color(0xFF3B82F6)],
+        ),
+        borderRadius: BorderRadius.circular(6),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Expanded(
+            child: TextField(
+              controller: _controller,
+              focusNode: _focusNode,
+              enabled: !widget.isPatrolling,
+              keyboardType: TextInputType.number,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                fontWeight: FontWeight.w900,
+                fontSize: 15,
+                color: Colors.white,
+              ),
+              decoration: const InputDecoration(
+                isDense: true,
+                contentPadding: EdgeInsets.zero,
+                border: InputBorder.none,
+              ),
+              onSubmitted: (_) => _submit(),
+            ),
+          ),
+          const Text(
+            '遍 ',
+            style: TextStyle(
+              fontWeight: FontWeight.w900,
+              fontSize: 15,
+              color: Colors.white,
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }

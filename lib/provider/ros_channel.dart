@@ -77,6 +77,20 @@ class RosChannel {
   ValueNotifier<Map<String, String>> movebaseActionStatusData = ValueNotifier({});
 
   String rosUrl_ = "";
+  
+  String get currentIp {
+    final url = rosUrl_;
+    if (url.startsWith('ws://')) {
+      final withoutPrefix = url.substring(5);
+      final colonIndex = withoutPrefix.indexOf(':');
+      if (colonIndex != -1) {
+        return withoutPrefix.substring(0, colonIndex);
+      }
+      return withoutPrefix;
+    }
+    return url;
+  }
+  
   Timer? cmdVelTimer;
   bool isReconnect_ = false;
 

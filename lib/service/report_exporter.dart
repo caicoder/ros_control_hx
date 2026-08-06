@@ -64,6 +64,11 @@ class ReportExporter {
     
     double avgSuccess = totalPoints > 0 ? (totalSuccess / totalPoints) * 100 : 0.0;
 
+    final String currentIp = reports.isNotEmpty && reports.first.ip.isNotEmpty ? reports.first.ip : '';
+    final String ipHtml = currentIp.isNotEmpty 
+        ? '<p style="color: var(--accent); font-size: 1.2rem; font-weight: bold; margin-bottom: 0.5rem;">连接设备 IP: $currentIp</p>' 
+        : '';
+
     String reportsHtml = '';
     for (var i = 0; i < reports.length; i++) {
       final report = reports[i];
@@ -318,6 +323,7 @@ class ReportExporter {
     <div class="container">
         <div class="header">
             <h1>自动化巡逻测试报告</h1>
+            $ipHtml
             <p style="color: var(--text-secondary);">导出时间: ${dateFormat.format(DateTime.now())}</p>
         </div>
         

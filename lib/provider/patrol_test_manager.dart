@@ -140,6 +140,7 @@ class PatrolTestManager extends ChangeNotifier {
 
     currentReport = PatrolReport(
       id: 'patrol_${DateTime.now().millisecondsSinceEpoch}',
+      ip: rosChannel.currentIp,
       startTime: DateTime.now(),
       totalRounds: totalRounds,
     );
@@ -189,7 +190,6 @@ class PatrolTestManager extends ChangeNotifier {
 
         Completer<void> pointCompleter = Completer<void>();
         late VoidCallback statusListener;
-        Timer? timeoutTimer;
 
         void checkStatus() {
           if (pointCompleter.isCompleted) return;
@@ -201,7 +201,6 @@ class PatrolTestManager extends ChangeNotifier {
           print("==== PATROL CHECK STATUS: status=$status, errStr=$errStr ====");
 
           if (status == 'ActionStatusFinished') {
-            timeoutTimer?.cancel();
             logItem.status = 'Finished';
             logItem.errorMessage = '';
             logItem.finishTime = DateTime.now();
@@ -209,7 +208,6 @@ class PatrolTestManager extends ChangeNotifier {
             
             pointCompleter.complete();
           } else if (status == 'ActionStatusError') {
-            timeoutTimer?.cancel();
             logItem.status = 'Error';
             logItem.errorMessage = errStr.isNotEmpty ? errStr : 'ActionStatusError';
             logItem.finishTime = DateTime.now();
@@ -230,7 +228,6 @@ class PatrolTestManager extends ChangeNotifier {
 
             pointCompleter.complete();
           } else if (status == 'ActionStatusStopped') {
-            timeoutTimer?.cancel();
             logItem.status = 'Cancelled';
             logItem.errorMessage = '用户终止';
             logItem.finishTime = DateTime.now();
@@ -246,17 +243,6 @@ class PatrolTestManager extends ChangeNotifier {
             pointCompleter.complete();
           }
         }
-
-        // 单点 90 秒超时机制
-        timeoutTimer = Timer(const Duration(seconds: 90), () {
-          if (!pointCompleter.isCompleted) {
-            logItem.status = 'Timeout';
-            logItem.errorMessage = '90秒导航超时';
-            logItem.finishTime = DateTime.now();
-            currentReport?.pointLogs.add(logItem);
-            pointCompleter.complete();
-          }
-        });
 
         statusListener = () => checkStatus();
         rosChannel.movebaseActionStatusData.addListener(statusListener);
@@ -290,7 +276,6 @@ class PatrolTestManager extends ChangeNotifier {
 
         // 2. 判断服务响应：若非 "ok"，记为失败并触发下一个点位
         if (resultStr != 'ok') {
-          timeoutTimer.cancel();
           rosChannel.movebaseActionStatusData.removeListener(statusListener);
           logItem.status = 'Failed';
           logItem.errorMessage = resultStr;
